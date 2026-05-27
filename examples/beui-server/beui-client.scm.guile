@@ -1,0 +1,86 @@
+;;; beui-client.scm.guile - Guile client for beui-server
+;;;
+;;; Prerequisites:
+;;;   Build beui-server: make
+;;;   pkgman install guile_tools
+;;;
+;;; Run:
+;;;   guile --no-auto-compile beui-client.scm.guile
+
+(use-modules (ice-9 popen) (ice-9 rdelim) (srfi srfi-1))
+
+(define beui-port #f)
+
+(define (beui-start)
+  "Start the beui-server process and store its bidirectional port."
+  (set! beui-port (open-pipe* OPEN_BOTH "./beui-server")))
+
+(define (beui-send cmd)
+  "Send a command line to beui-server."
+  (display cmd beui-port)
+  (newline beui-port)
+  (force-output beui-port))
+
+(define (beui-recv)
+  "Read one line from beui-server, or #f on EOF."
+  (let ((line (read-line beui-port)))
+    (if (eof-object? line) #f line)))
+
+(define (beui-cmd cmd)
+  (beui-send cmd)
+  (beui-recv))
+
+;; High-level API
+(define (beui-window id title x y w h)
+  (beui-cmd (format #f "window ~a \"~a\" ~a ~a ~a ~a" id title x y w h)))
+
+(define (beui-button id parent label x y w h)
+  (beui-cmd (format #f "button ~a ~a \"~a\" ~a ~a ~a ~a" id parent label x y w h)))
+
+(define (beui-label id parent text x y w h)
+  (beui-cmd (format #f "label ~a ~a \"~a\" ~a ~a ~a ~a" id parent text x y w h)))
+
+(define (beui-show id) (beui-cmd (string-append "show " id)))
+(define (beui-quit) (beui-cmd "quit"))
+
+(define (parse-event line)
+  "Split an event line into (event-type id)."
+  (let ((parts (string-split line #\space)))
+    (values (first parts)
+            (if (>= (length parts) 2) (second parts) ""))))
+
+(define (beui-event-loop handler)
+  "Read events and call handler with (event-type id) until EOF."
+  (let loop ((line (beui-recv)))
+    (when line
+      (call-with-values (lambda () (parse-event line))
+        (lambda (event id) (handler event id)))
+      (loop (beui-recv)))))
+
+;;; Demo application
+(define (main)
+  (format #t "Starting beui-server...~%")
+  (beui-start)
+
+  (format #t "Server: ~a~%" (beui-recv))
+
+  (format #t "~a~%" (beui-window "main" "Hello from Guile!" 100 100 300 200))
+  (format #t "~a~%" (beui-label "lbl1" "main" "Click the button:" 20 20 200 20))
+  (format #t "~a~%" (beui-button "btn1" "main" "Click Me!" 20 50 100 30))
+  (format #t "~a~%" (beui-button "btn2" "main" "Quit" 20 90 100 30))
+  (format #t "~a~%" (beui-show "main"))
+
+  (format #t "Waiting for events...~%")
+  (beui-event-loop
+   (lambda (event id)
+     (cond
+       ((string=? event "clicked")
+        (format #t "Button clicked: ~a~%" id)
+        (when (string=? id "btn2") (beui-quit)))
+       ((string=? event "closed")
+        (format #t "Window closed: ~a~%" id)
+        (beui-quit))
+       (else
+        (format #t "Event: ~a ~a~%" event id))))))
+
+(main)

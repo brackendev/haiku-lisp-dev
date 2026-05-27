@@ -1,0 +1,7 @@
+# Compiled binaries
+examples/beui-server/beui-server
+examples/qtui-server/qtui-server
+
+# Intermediate Qt build outputs
+examples/qtui-server/qtui-server.o
+examples/qtui-server/qtui-server.moc

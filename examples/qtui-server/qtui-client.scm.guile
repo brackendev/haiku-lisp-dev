@@ -1,0 +1,100 @@
+;;; qtui-client.scm.guile - Guile client for qtui-server
+;;;
+;;; Prerequisites:
+;;;   Build qtui-server: make
+;;;   pkgman install guile_tools
+;;;
+;;; Run:
+;;;   guile --no-auto-compile qtui-client.scm.guile
+
+(use-modules (ice-9 popen) (ice-9 rdelim) (srfi srfi-1))
+
+(define qtui-port #f)
+
+(define (qtui-start)
+  (set! qtui-port (open-pipe* OPEN_BOTH "./qtui-server")))
+
+(define (qtui-send cmd)
+  (display cmd qtui-port)
+  (newline qtui-port)
+  (force-output qtui-port))
+
+(define (qtui-recv)
+  (let ((line (read-line qtui-port)))
+    (if (eof-object? line) #f line)))
+
+(define (qtui-cmd cmd)
+  (qtui-send cmd)
+  (qtui-recv))
+
+(define (qtui-window id title w h)
+  (qtui-cmd (format #f "window ~a \"~a\" ~a ~a" id title w h)))
+
+(define (qtui-button id parent label)
+  (qtui-cmd (format #f "button ~a ~a \"~a\"" id parent label)))
+
+(define (qtui-label id parent text)
+  (qtui-cmd (format #f "label ~a ~a \"~a\"" id parent text)))
+
+(define* (qtui-input id parent #:optional placeholder)
+  (if placeholder
+      (qtui-cmd (format #f "input ~a ~a \"~a\"" id parent placeholder))
+      (qtui-cmd (format #f "input ~a ~a" id parent))))
+
+(define (qtui-checkbox id parent label)
+  (qtui-cmd (format #f "checkbox ~a ~a \"~a\"" id parent label)))
+
+(define (qtui-hbox id parent)
+  (qtui-cmd (format #f "hbox ~a ~a" id parent)))
+
+(define (qtui-show id) (qtui-cmd (string-append "show " id)))
+(define (qtui-quit) (qtui-cmd "quit"))
+
+(define (parse-event line)
+  (let ((parts (string-split line #\space)))
+    (values (first parts)
+            (if (>= (length parts) 2) (second parts) "")
+            (if (>= (length parts) 3) (third parts) ""))))
+
+(define (qtui-event-loop handler)
+  (let loop ((line (qtui-recv)))
+    (when line
+      (call-with-values (lambda () (parse-event line))
+        (lambda (event id value) (handler event id value)))
+      (loop (qtui-recv)))))
+
+(define (main)
+  (format #t "Starting qtui-server...~%")
+  (qtui-start)
+
+  (format #t "Server: ~a~%" (qtui-recv))
+
+  (format #t "~a~%" (qtui-window "main" "Hello from Guile!" 400 300))
+  (format #t "~a~%" (qtui-label "lbl1" "main" "Enter your name:"))
+  (format #t "~a~%" (qtui-input "name" "main" "Type here..."))
+  (format #t "~a~%" (qtui-checkbox "chk1" "main" "Enable feature"))
+
+  (format #t "~a~%" (qtui-hbox "buttons" "main"))
+  (format #t "~a~%" (qtui-button "btn1" "buttons" "Greet"))
+  (format #t "~a~%" (qtui-button "btn2" "buttons" "Quit"))
+
+  (format #t "~a~%" (qtui-show "main"))
+
+  (format #t "Waiting for events...~%")
+  (qtui-event-loop
+   (lambda (event id value)
+     (cond
+       ((string=? event "clicked")
+        (format #t "Button clicked: ~a~%" id)
+        (when (string=? id "btn2") (qtui-quit)))
+       ((string=? event "changed")
+        (format #t "Text changed in ~a: ~a~%" id value))
+       ((string=? event "checked")
+        (format #t "Checkbox ~a is now ~a~%" id (if (string=? value "1") "checked" "unchecked")))
+       ((string=? event "closed")
+        (format #t "Window closed: ~a~%" id)
+        (qtui-quit))
+       (else
+        (format #t "Event: ~a ~a ~a~%" event id value))))))
+
+(main)
