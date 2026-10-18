@@ -1,6 +1,6 @@
 # Haiku Lisp Development
 
-This repository documents GUI options for Lisp dialects on Haiku®. It includes runnable examples for ten implementations and two stdin/stdout UI servers ([`beui-server`](https://github.com/brackendev/haiku-lisp-dev/releases) for native BeAPI, [`qtui-server`](https://github.com/brackendev/haiku-lisp-dev/releases) for Qt6) that any Lisp can drive without a foreign function interface.
+This repository documents GUI options for Common Lisp, Scheme, and other Lisp dialects such as Clojure and Janet on Haiku®. It includes runnable examples for ten implementations and two stdin/stdout UI servers ([`beui-server`](https://github.com/brackendev/haiku-lisp-dev/releases) for native BeAPI, [`qtui-server`](https://github.com/brackendev/haiku-lisp-dev/releases) for Qt6) that any Lisp can drive without a foreign function interface.
 
 The examples use three paths:
 
